@@ -1,4 +1,3 @@
-import os
 import sqlite3 as sqlite
 import string
 from typing import *
@@ -10,7 +9,7 @@ class Note:
     subject: str
     note: str
     user_id: int
-    weight: int  # how much the note counts
+    weight: float  # how much the note counts
     release_date: str  # when teacher gave the note
     created_at: str  # when the note was inserted into the database
 
@@ -20,6 +19,13 @@ class Subject:
     name: str
     notes: List[Note]
     gpa: float
+
+    def to_json(self) -> dict:
+        return {
+            'name': self.name,
+            'note_count': len(self.notes),
+            'gpa': self.gpa
+        }
 
 
 @dataclass
@@ -93,6 +99,24 @@ class DatabaseManager:
         self.__db.commit()
 
         return TokenPair(access_token, refresh_token, expires_at)
+
+    def user_id_exists(self, user_id: int) -> bool:
+        """
+        Check if a user ID exists
+        :param user_id: User ID
+        :return: True if exists, False otherwise
+        """
+        self.__cursor.execute("""SELECT id FROM users WHERE id = ? LIMIT 1""", (user_id,))
+        return self.__cursor.fetchone() is not None
+
+    def get_access_token_by_user_id(self, user_id: int) -> str:
+        """
+        Get an access token by user id
+        :param user_id: User ID
+        :return: Access token
+        """
+        self.__cursor.execute("""SELECT access_token FROM tokens WHERE user_id = ? LIMIT 1""", (user_id,))
+        return self.__cursor.fetchone()[0]
 
     def get_token_pair(self, user_id: int) -> TokenPair:
         """

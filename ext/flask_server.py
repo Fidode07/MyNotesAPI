@@ -2,15 +2,75 @@ import flask.json
 from flask import Flask, jsonify, Response
 from flask_classful import FlaskView, route
 from ext.utils import *
-from ext.database_manager import DatabaseManager, UserInfo, TokenPair
+from ext.database_manager import DatabaseManager, UserInfo, TokenPair, Subject
+from typing import *
 
 
 class MyNotes(FlaskView):
     def __init__(self):
         super().__init__()
-        self.db: DatabaseManager = DatabaseManager(StringUtils)
+        self.__db: DatabaseManager = DatabaseManager(StringUtils)
         self.__hasher: Hasher = Hasher(algorithm='sha512')
-        self.__login_utils: LoginUtils = LoginUtils(self.db, self.__hasher)
+        self.__login_utils: LoginUtils = LoginUtils(self.__db, self.__hasher)
+        self.__auth_helper: AuthHelper = AuthHelper(self.__db)
+
+    @route('/add_note', methods=['POST'])
+    def add_note(self) -> tuple[Response, int]:
+        """
+        Add a note to the database
+        :return: Response and status code
+        """
+        try:
+            user_id: str = str(flask.request.json['user_id'])
+            access_token: str = str(flask.request.json['access_token'])
+
+            auth_correct: Tuple[bool, str] = self.__auth_helper.correct_api_credentials(user_id, access_token)
+
+            if not auth_correct[0]:
+                raise InvalidArgumentException(auth_correct[1])
+
+            user_id: int = int(user_id)
+
+            subject: str = str(flask.request.json['subject'])
+            note: int = int(flask.request.json['note'])
+            weight: float = float(flask.request.json['weight'])
+            release_date: str = str(flask.request.json['release_date'])
+
+            self.__db.add_note(subject=subject, note=note, user_id=user_id, release_date=release_date, weight=weight)
+            return jsonify({
+                'status': 200,
+                'error': False
+            }), 200
+        except Exception as e:
+            return jsonify({'status': 500, 'error': True, "error_msg": str(e)}), 500
+
+    @route('/get_subjects', methods=['POST'])
+    def get_subjects(self) -> tuple[Response, int]:
+        """
+        Get all subjects of a user
+        :return: Response and status code
+        """
+        try:
+            user_id: str = str(flask.request.json['user_id'])
+            access_token: str = str(flask.request.json['access_token'])
+
+            auth_correct: Tuple[bool, str] = self.__auth_helper.correct_api_credentials(user_id, access_token)
+
+            if not auth_correct[0]:
+                raise InvalidArgumentException(auth_correct[1])
+
+            user_id: int = int(user_id)
+
+            subjects: List[Subject] = self.__db.get_all_subjects(user_id)
+            return jsonify({
+                'status': 200,
+                'error': False,
+                'subjects': [x.to_json() for x in subjects]
+            }), 200
+        except Exception as e:
+            return jsonify({'status': 500, 'error': True, "error_msg": str(e)}), 500
+
+    # TODO: Implement refresh token
 
     @route('/login', methods=['POST'])
     def login_user(self) -> tuple[Response, int]:
@@ -45,7 +105,7 @@ class MyNotes(FlaskView):
                 raise InvalidArgumentException('Password or Username is incorrect')
 
             # everything is fine, we can return the tokens
-            token_pair: TokenPair = self.db.get_token_pair(user_id)
+            token_pair: TokenPair = self.__db.get_token_pair(user_id)
 
             return jsonify({
                 'status': 200,
@@ -68,7 +128,7 @@ class MyNotes(FlaskView):
             username: CheckedParameter = StringUtils.validate_username(flask.request.json['username'])
             password: CheckedParameter = StringUtils.validate_password(flask.request.json['password'], self.__hasher)
 
-            if self.db.username_exists(username.parameter):
+            if self.__db.username_exists(username.parameter):
                 raise InvalidArgumentException('Username already exists')
 
             if not username.valid:
@@ -78,8 +138,8 @@ class MyNotes(FlaskView):
                 raise InvalidArgumentException(password.message)
 
             # password.parameter is already a hashed salted password
-            user: UserInfo = self.db.add_user(username=username.parameter,
-                                              password=password.parameter)
+            user: UserInfo = self.__db.add_user(username=username.parameter,
+                                                password=password.parameter)
             return jsonify({
                 'status': 200,
                 'error': False,

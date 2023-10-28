@@ -1,6 +1,7 @@
 import random
 import string
 import time
+from typing import *
 from dataclasses import dataclass
 import hashlib
 import base64
@@ -206,3 +207,32 @@ class LoginUtils:
         :return: User password
         """
         return self.__db.get_user_password(user_id)
+
+
+class AuthHelper:
+    def __init__(self, db: DatabaseManager) -> None:
+        self.__db: DatabaseManager = db
+
+    def correct_api_credentials(self, user_id: str, access_token: str) -> Tuple[bool, str]:
+        """
+        Check if the API credentials are correct
+        :param user_id: User ID casted to string
+        :param access_token: Access token
+        :return: True if correct, False otherwise
+        """
+
+        if StringUtils.is_empty(user_id):
+            return False, 'User ID is empty'
+
+        if StringUtils.is_empty(access_token):
+            return False, 'Access token is empty'
+
+        user_id: int = int(user_id)
+
+        if not self.__db.user_id_exists(user_id):
+            return False, 'Invalid User ID'
+
+        db_access_token: str = self.__db.get_access_token_by_user_id(user_id)
+        if not access_token == db_access_token:
+            return False, 'Access token is invalid'
+        return True, ''
