@@ -17,7 +17,9 @@ class Note:
     def to_json(self) -> dict:
         return {
             'id': self.id,
+            'subject': self.subject,
             'note': self.note,
+            'user_id': self.user_id,
             'weight': self.weight,
             'release_date': self.release_date,
             'created_at': self.created_at
@@ -153,14 +155,33 @@ class DatabaseManager:
 
         return UserInfo(token_info, user_id)
 
-    def get_note_information(self, note_id: int) -> Tuple[str, str, int, str]:
+    def get_note_by_id(self, user_id: int, note_id: int) -> Note:
         """
         Get note information
+        :param user_id: User ID
         :param note_id: Note ID
-        :return: Subject, note, user ID
+        :return: Note object
         """
-        self.__cursor.execute("""SELECT subject, note, note_owner FROM notes WHERE id = ?""", (note_id,))
-        return self.__cursor.fetchone()
+        self.__cursor.execute(
+            """SELECT subject, note, note_owner, release_date, weight, created_at FROM notes WHERE id = ? AND 
+            note_owner = ?""",
+            (note_id, user_id))
+        row: Tuple = self.__cursor.fetchone()
+
+        note_owner: int = row[2]
+        if note_owner != user_id:
+            raise ValueError('Note does not belong to user')
+
+        note: Note = Note(
+            id=note_id,
+            subject=row[0],
+            note=row[1],
+            user_id=row[2],
+            release_date=row[3],
+            weight=row[4],
+            created_at=row[5]
+        )
+        return note
 
     def username_exists(self, username: str) -> bool:
         """

@@ -2,7 +2,7 @@ import flask.json
 from flask import Flask, jsonify, Response
 from flask_classful import FlaskView, route
 from ext.utils import *
-from ext.database_manager import DatabaseManager, UserInfo, TokenPair, Subject
+from ext.database_manager import DatabaseManager, UserInfo, TokenPair, Subject, Note
 from typing import *
 
 
@@ -13,6 +13,34 @@ class MyNotes(FlaskView):
         self.__hasher: Hasher = Hasher(algorithm='sha512')
         self.__login_utils: LoginUtils = LoginUtils(self.__db, self.__hasher)
         self.__auth_helper: AuthHelper = AuthHelper(self.__db)
+
+    @route('/get_note', methods=['POST'])
+    def get_note(self) -> tuple[Response, int]:
+        """
+        Get a note from the database
+        :return: Response and status code
+        """
+        try:
+            user_id: str = str(flask.request.json['user_id'])
+            access_token: str = str(flask.request.json['access_token'])
+
+            auth_correct: Tuple[bool, str] = self.__auth_helper.correct_api_credentials(user_id, access_token)
+
+            if not auth_correct[0]:
+                raise InvalidArgumentException(auth_correct[1])
+
+            user_id: int = int(user_id)
+
+            note_id: int = int(flask.request.json['note_id'])
+            note: Note = self.__db.get_note_by_id(user_id, note_id)
+
+            return jsonify({
+                'status': 200,
+                'error': False,
+                'note': note.to_json()
+            }), 200
+        except Exception as e:
+            return jsonify({'status': 500, 'error': True, "error_msg": str(e)}), 500
 
     @route('/add_note', methods=['POST'])
     def add_note(self) -> tuple[Response, int]:
