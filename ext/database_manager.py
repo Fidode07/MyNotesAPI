@@ -6,12 +6,22 @@ from dataclasses import dataclass
 
 @dataclass
 class Note:
+    id: int
     subject: str
     note: str
     user_id: int
     weight: float  # how much the note counts
     release_date: str  # when teacher gave the note
     created_at: str  # when the note was inserted into the database
+
+    def to_json(self) -> dict:
+        return {
+            'id': self.id,
+            'note': self.note,
+            'weight': self.weight,
+            'release_date': self.release_date,
+            'created_at': self.created_at
+        }
 
 
 @dataclass
@@ -207,6 +217,7 @@ class DatabaseManager:
             """SELECT id, note, weight, release_date, created_at FROM notes WHERE note_owner = ? AND subject = ?""",
             (user_id, subject))
         notes: List[Note] = [Note(
+            id=note[0],
             subject=subject,
             note=note[1],
             user_id=user_id,

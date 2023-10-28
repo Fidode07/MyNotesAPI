@@ -44,6 +44,36 @@ class MyNotes(FlaskView):
         except Exception as e:
             return jsonify({'status': 500, 'error': True, "error_msg": str(e)}), 500
 
+    @route('/get_subject', methods=['POST'])
+    def get_subject(self) -> tuple[Response, int]:
+        """
+        Get a subject
+        :return: Response and status code
+        """
+        try:
+            user_id: str = str(flask.request.json['user_id'])
+            access_token: str = str(flask.request.json['access_token'])
+
+            auth_correct: Tuple[bool, str] = self.__auth_helper.correct_api_credentials(user_id, access_token)
+
+            if not auth_correct[0]:
+                raise InvalidArgumentException(auth_correct[1])
+
+            user_id: int = int(user_id)
+
+            subject: str = str(flask.request.json['subject'])
+            subject: Subject = self.__db.get_subject(user_id, subject)
+
+            return jsonify({
+                'status': 200,
+                'error': False,
+                'subject': subject.to_json(),
+                'notes': [x.to_json() for x in subject.notes]
+            }), 200
+
+        except Exception as e:
+            return jsonify({'status': 500, 'error': True, "error_msg": str(e)}), 500
+
     @route('/get_subjects', methods=['POST'])
     def get_subjects(self) -> tuple[Response, int]:
         """
