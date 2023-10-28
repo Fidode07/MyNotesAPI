@@ -1,4 +1,6 @@
+import os
 import sqlite3 as sqlite
+import string
 from typing import *
 from dataclasses import dataclass
 
@@ -20,10 +22,25 @@ class Subject:
     gpa: float
 
 
+@dataclass
+class TokenPair:
+    access_token: str
+    refresh_token: str
+    expires_at: str
+
+
+@dataclass
+class UserInfo:
+    token_info: TokenPair
+    user_id: int
+
+
 class DatabaseManager:
-    def __init__(self, db: str = 'MyNotes') -> None:
-        self.__db: sqlite.Connection = sqlite.connect(db)
+    def __init__(self, string_helper, db: str = 'MyNotes') -> None:
+        self.__db: sqlite.Connection = sqlite.connect(db, check_same_thread=False)
         self.__cursor: sqlite.Cursor = self.__db.cursor()
+
+        self.__string_helper = string_helper
 
         self.__cursor.execute("""CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,22 +59,65 @@ class DatabaseManager:
             FOREIGN KEY (note_owner) REFERENCES users(id)
         )""")
 
+        self.__cursor.execute("""CREATE TABLE IF NOT EXISTS tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            access_token TEXT NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            refresh_token TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )""")
+
         self.__db.commit()
+
+        self.__default_expiration_time: int = 60 * 60 * 24 * 30  # 30 days
+        self.__token_length: int = 32
+        self.__token_chars: str = string.ascii_letters + string.digits + '_!@#'
 
     def __del__(self) -> None:
         self.__db.close()
 
-    def add_user(self, username: str, password: str) -> int:
+    def generate_access_token(self, user_id: int) -> TokenPair:
+        """
+        Generate an access token
+        :param user_id: User ID
+        :return: Access token
+        """
+        access_token: str = self.__string_helper.generate_token(self.__token_length, self.__token_chars)
+        refresh_token: str = self.__string_helper.generate_token(self.__token_length, self.__token_chars)
+        expires_at: str = self.__string_helper.generate_expiration_time(self.__default_expiration_time)
+
+        self.__cursor.execute(
+            """INSERT INTO tokens (access_token, expires_at, refresh_token, user_id) VALUES (?, ?, ?, ?)""",
+            (access_token, expires_at, refresh_token, user_id))
+        self.__db.commit()
+
+        return TokenPair(access_token, refresh_token, expires_at)
+
+    def get_token_pair(self, user_id: int) -> TokenPair:
+        """
+        Get a token pair
+        :param user_id: User ID
+        :return: Token pair
+        """
+        self.__cursor.execute("""SELECT access_token, refresh_token, expires_at FROM tokens WHERE user_id = ?""",
+                              (user_id,))
+        return TokenPair(*self.__cursor.fetchone())
+
+    def add_user(self, username: str, password: str) -> UserInfo:
         """
         Add a user to the database
         :param username: Plain text username
-        :param password: Hashed password (sha256)
-        :return: User ID
+        :param password: Hashed password
+        :return: UserInfo object
         """
         self.__cursor.execute("""INSERT INTO users (username, password) VALUES (?, ?)""", (username, password))
         self.__db.commit()
 
-        return self.__cursor.lastrowid
+        user_id: int = self.__cursor.lastrowid
+        token_info: TokenPair = self.generate_access_token(user_id)
+
+        return UserInfo(token_info, user_id)
 
     def get_note_information(self, note_id: int) -> Tuple[str, str, int, str]:
         """
@@ -65,8 +125,35 @@ class DatabaseManager:
         :param note_id: Note ID
         :return: Subject, note, user ID
         """
-        self.__cursor.execute("""SELECT subject, note, note_owner, FROM notes WHERE id = ?""", (note_id,))
+        self.__cursor.execute("""SELECT subject, note, note_owner FROM notes WHERE id = ?""", (note_id,))
         return self.__cursor.fetchone()
+
+    def username_exists(self, username: str) -> bool:
+        """
+        Check if a username exists
+        :param username: Username to check in plain text
+        :return: True if username exists, False otherwise
+        """
+        self.__cursor.execute("""SELECT id FROM users WHERE username = ? LIMIT 1""", (username,))
+        return self.__cursor.fetchone() is not None
+
+    def get_user_id(self, username: str) -> int:
+        """
+        Get a user ID
+        :param username: Username in plain text
+        :return: User ID
+        """
+        self.__cursor.execute("""SELECT id FROM users WHERE username = ? LIMIT 1""", (username,))
+        return self.__cursor.fetchone()[0]
+
+    def get_user_password(self, user_id: int) -> str:
+        """
+        Get a user password
+        :param user_id: User ID
+        :return: Password
+        """
+        self.__cursor.execute("""SELECT password FROM users WHERE id = ? LIMIT 1""", (user_id,))
+        return self.__cursor.fetchone()[0]
 
     def add_note(self, subject: str, note: int, user_id: int, release_date: str = '', weight: float = 1.0) -> int:
         """
