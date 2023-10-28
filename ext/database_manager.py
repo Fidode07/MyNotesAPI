@@ -63,7 +63,8 @@ class DatabaseManager:
         self.__cursor.execute("""CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL,
-            password TEXT NOT NULL
+            password TEXT NOT NULL,
+            salt TEXT DEFAULT ''
         )""")
 
         self.__cursor.execute("""CREATE TABLE IF NOT EXISTS notes (
@@ -90,6 +91,7 @@ class DatabaseManager:
 
         self.__default_expiration_time: int = 60 * 60 * 24 * 30  # 30 days
         self.__token_length: int = 32
+        self.__salt_length: int = 32
         self.__token_chars: str = string.ascii_letters + string.digits + '_!@#'
 
     def __del__(self) -> None:
@@ -140,14 +142,25 @@ class DatabaseManager:
                               (user_id,))
         return TokenPair(*self.__cursor.fetchone())
 
-    def add_user(self, username: str, password: str) -> UserInfo:
+    def get_salt_by_user_id(self, user_id: int) -> str:
+        """
+        Get a salt by user ID
+        :param user_id: User ID
+        :return: Salt
+        """
+        self.__cursor.execute("""SELECT salt FROM users WHERE id = ? LIMIT 1""", (user_id,))
+        return self.__cursor.fetchone()[0]
+
+    def add_user(self, username: str, password: str, salt: str) -> UserInfo:
         """
         Add a user to the database
         :param username: Plain text username
         :param password: Hashed password
+        :param salt: Salt for the password
         :return: UserInfo object
         """
-        self.__cursor.execute("""INSERT INTO users (username, password) VALUES (?, ?)""", (username, password))
+        self.__cursor.execute("""INSERT INTO users (username, password, salt) VALUES (?, ?, ?)""",
+                              (username, password, salt))
         self.__db.commit()
 
         user_id: int = self.__cursor.lastrowid

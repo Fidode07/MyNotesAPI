@@ -15,7 +15,6 @@ max_password_length = 20
 min_password_length = 8
 
 allowed_chars = string.ascii_letters + string.digits + '_!@#'
-salt: str = 'IRLGNSLGNIRMD'
 
 
 class Hasher:
@@ -28,6 +27,15 @@ class Hasher:
     @staticmethod
     def equal_hashes(h1: str, h2: str) -> bool:
         return h1 == h2
+
+    @staticmethod
+    def generate_salt(salt_length: int = 32) -> str:
+        """
+        Generate a salt
+        :param salt_length: Length of the salt
+        :return: Salt as string
+        """
+        return ''.join(random.choice(allowed_chars) for _ in range(salt_length))
 
 
 class InvalidArgumentException(Exception):
@@ -119,27 +127,29 @@ class StringUtils:
         return hasher.hash(password)
 
     @staticmethod
-    def add_salt_to_hashed_password(password: str, hasher: Hasher) -> str:
+    def add_salt_to_hashed_password(password: str, hasher: Hasher, salt: str) -> str:
         """
         Add salt to a hashed password
         :param password: Sha256 hashed password
         :param hasher: Hasher instance to hash the password
+        :param salt: Salt to add to the hashed password
         :return: Salted password
         """
         return hasher.hash(password + salt)
 
     @staticmethod
-    def validate_password(password: str, hasher: Hasher) -> CheckedParameter:
+    def validate_password(password: str, hasher: Hasher, salt: str) -> CheckedParameter:
         """
         Check if a password is valid
         :param password: Password as string (base64 encoded)
         :param hasher: Hasher instance to hash the password
+        :param salt: Salt to add to the hashed password
         :return: True if valid, False otherwise
         """
         # make password to plain text
         password = base64.b64decode(password).decode()
         hashed_password: str = StringUtils.hash_password(password, hasher)
-        hashed_salted_password: str = StringUtils.add_salt_to_hashed_password(hashed_password, hasher)
+        hashed_salted_password: str = StringUtils.add_salt_to_hashed_password(hashed_password, hasher, salt)
 
         result: CheckedParameter = CheckedParameter(valid=False,
                                                     message='',

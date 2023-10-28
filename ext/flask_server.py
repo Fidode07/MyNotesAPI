@@ -146,8 +146,6 @@ class MyNotes(FlaskView):
                 print('Password is empty')
                 raise InvalidArgumentException('Password or Username is incorrect')
 
-            salted_password: str = StringUtils.add_salt_to_hashed_password(password, self.__hasher)
-
             if not username.valid:
                 raise InvalidArgumentException(username.message)
 
@@ -156,6 +154,10 @@ class MyNotes(FlaskView):
                 raise InvalidArgumentException('Password or Username is incorrect')
 
             user_id: int = self.__login_utils.get_user_id(username.parameter)
+
+            user_salt: str = self.__db.get_salt_by_user_id(user_id)
+
+            salted_password: str = StringUtils.add_salt_to_hashed_password(password, self.__hasher, salt=user_salt)
             db_password: str = self.__login_utils.get_user_password(user_id)
 
             if not self.__hasher.equal_hashes(salted_password, db_password):
@@ -183,8 +185,11 @@ class MyNotes(FlaskView):
         :return: Response and status code
         """
         try:
+            user_salt: str = self.__hasher.generate_salt()
+
             username: CheckedParameter = StringUtils.validate_username(flask.request.json['username'])
-            password: CheckedParameter = StringUtils.validate_password(flask.request.json['password'], self.__hasher)
+            password: CheckedParameter = StringUtils.validate_password(flask.request.json['password'], self.__hasher,
+                                                                       salt=user_salt)
 
             if self.__db.username_exists(username.parameter):
                 raise InvalidArgumentException('Username already exists')
@@ -197,7 +202,8 @@ class MyNotes(FlaskView):
 
             # password.parameter is already a hashed salted password
             user: UserInfo = self.__db.add_user(username=username.parameter,
-                                                password=password.parameter)
+                                                password=password.parameter,
+                                                salt=user_salt)
             return jsonify({
                 'status': 200,
                 'error': False,
