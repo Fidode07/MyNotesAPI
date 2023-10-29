@@ -78,7 +78,7 @@ class MyNotes(FlaskView):
             note_id: int = int(flask.request.json['note_id'])
             note: Note = self.__db.get_note_by_id(user_id, note_id)
             print(note)
-            if not Note or note is None:  # idk why but it does not work with not Note
+            if not Note or note is None:
                 raise InvalidArgumentException('Note does not exist or does not belong to user')
 
             return jsonify({
