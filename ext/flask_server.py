@@ -31,6 +31,9 @@ class MyNotes(FlaskView):
 
             user_id: int = int(user_id)
 
+            if self.__auth_helper.access_token_expired(user_id):
+                raise InvalidArgumentException('Access token expired')
+
             note_id: int = int(flask.request.json['note_id'])
             note: Note = self.__db.get_note_by_id(user_id, note_id)
 
@@ -58,6 +61,9 @@ class MyNotes(FlaskView):
                 raise InvalidArgumentException(auth_correct[1])
 
             user_id: int = int(user_id)
+
+            if self.__auth_helper.access_token_expired(user_id):
+                raise InvalidArgumentException('Access token expired')
 
             subject: str = str(flask.request.json['subject'])
             note: int = int(flask.request.json['note'])
@@ -89,6 +95,9 @@ class MyNotes(FlaskView):
 
             user_id: int = int(user_id)
 
+            if self.__auth_helper.access_token_expired(user_id):
+                raise InvalidArgumentException('Access token expired')
+
             subject: str = str(flask.request.json['subject'])
             subject: Subject = self.__db.get_subject(user_id, subject)
 
@@ -118,6 +127,8 @@ class MyNotes(FlaskView):
                 raise InvalidArgumentException(auth_correct[1])
 
             user_id: int = int(user_id)
+            if self.__auth_helper.access_token_expired(user_id):
+                raise InvalidArgumentException('Access token expired')
 
             subjects: List[Subject] = self.__db.get_all_subjects(user_id)
             return jsonify({
@@ -129,6 +140,35 @@ class MyNotes(FlaskView):
             return jsonify({'status': 500, 'error': True, "error_msg": str(e)}), 500
 
     # TODO: Implement refresh token
+
+    @route('/refresh_token', methods=['POST'])
+    def refresh_token(self) -> tuple[Response, int]:
+        """
+        Refresh the access token
+        :return: Response and status code
+        """
+        try:
+            user_id: str = str(flask.request.json['user_id'])
+            refresh_token: str = str(flask.request.json['refresh_token'])
+
+            auth_correct: Tuple[bool, str] = self.__auth_helper.correct_api_credentials_refresh(user_id, refresh_token)
+
+            if not auth_correct[0]:
+                raise InvalidArgumentException(auth_correct[1])
+
+            user_id: int = int(user_id)
+            # everything is fine, we can generate a new access token
+            token_pair: TokenPair = self.__db.refresh_access_token(user_id)
+            token_pair.refresh_token = refresh_token
+            return jsonify({
+                'status': 200,
+                'error': False,
+                'access_token': token_pair.access_token,
+                'expires_at': token_pair.expires_at,
+                'user_id': user_id
+            }), 200
+        except Exception as e:
+            return jsonify({'status': 500, 'error': True, "error_msg": str(e)}), 500
 
     @route('/login', methods=['POST'])
     def login_user(self) -> tuple[Response, int]:
@@ -154,6 +194,10 @@ class MyNotes(FlaskView):
                 raise InvalidArgumentException('Password or Username is incorrect')
 
             user_id: int = self.__login_utils.get_user_id(username.parameter)
+
+            if self.__auth_helper.access_token_expired(user_id):
+                # Token expired, we need to generate a new one
+                self.__db.refresh_access_token(user_id)
 
             user_salt: str = self.__db.get_salt_by_user_id(user_id)
 

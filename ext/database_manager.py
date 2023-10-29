@@ -89,13 +89,49 @@ class DatabaseManager:
 
         self.__db.commit()
 
-        self.__default_expiration_time: int = 60 * 60 * 24 * 30  # 30 days
+        # self.__default_expiration_time: int = 60 * 60 * 24 * 30  # 30 days
+        # 10 seconds for testing purposes
+        self.__default_expiration_time: int = 10
         self.__token_length: int = 32
         self.__salt_length: int = 32
         self.__token_chars: str = string.ascii_letters + string.digits + '_!@#'
 
     def __del__(self) -> None:
         self.__db.close()
+
+    def get_refresh_token_by_user_id(self, user_id: int) -> str:
+        """
+        Get a refresh token by user ID
+        :param user_id: User ID
+        :return: Refresh token
+        """
+        self.__cursor.execute("""SELECT refresh_token FROM tokens WHERE user_id = ? LIMIT 1""", (user_id,))
+        return self.__cursor.fetchone()[0]
+
+    def get_expiration_time(self, user_id: int) -> str:
+        """
+        Get the expiration time of a token
+        :param user_id: User ID
+        :return: Expiration time
+        """
+        self.__cursor.execute("""SELECT expires_at FROM tokens WHERE user_id = ? LIMIT 1""", (user_id,))
+        return self.__cursor.fetchone()[0]
+
+    def refresh_access_token(self, user_id: int) -> TokenPair:
+        """
+        Refresh an access token
+        :param user_id: User ID
+        :return: Token pair
+        """
+        access_token: str = self.__string_helper.generate_token(self.__token_length, self.__token_chars)
+        expires_at: str = self.__string_helper.generate_expiration_time(self.__default_expiration_time)
+
+        self.__cursor.execute(
+            """UPDATE tokens SET access_token = ?, expires_at = ? WHERE user_id = ?""",
+            (access_token, expires_at, user_id))
+        self.__db.commit()
+
+        return TokenPair(access_token, '', expires_at)
 
     def generate_access_token(self, user_id: int) -> TokenPair:
         """

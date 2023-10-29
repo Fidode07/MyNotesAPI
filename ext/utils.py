@@ -188,6 +188,15 @@ class StringUtils:
         """
         return str(int(time.time()) + duration)
 
+    @staticmethod
+    def is_after_expiration_time(expires_at: str) -> bool:
+        """
+        Check if a token is expired
+        :param expires_at: Timestamp when the token expires
+        :return: True if expired, False otherwise
+        """
+        return int(time.time()) > int(expires_at)
+
 
 class LoginUtils:
     def __init__(self, db: DatabaseManager, hasher: Hasher) -> None:
@@ -222,6 +231,39 @@ class LoginUtils:
 class AuthHelper:
     def __init__(self, db: DatabaseManager) -> None:
         self.__db: DatabaseManager = db
+
+    def access_token_expired(self, user_id: int) -> bool:
+        """
+        Check if the access token is expired
+        :param user_id: User ID
+        :return: True if expired, False otherwise
+        """
+        expires_at: str = self.__db.get_expiration_time(user_id)
+        return StringUtils.is_after_expiration_time(expires_at)
+
+    def correct_api_credentials_refresh(self, user_id: str, refresh_token: str) -> Tuple[bool, str]:
+        """
+        Check if the API credentials are correct
+        :param user_id: User ID casted to string
+        :param refresh_token: Refresh token
+        :return: True if correct, False otherwise
+        """
+
+        if StringUtils.is_empty(user_id):
+            return False, 'User ID is empty'
+
+        if StringUtils.is_empty(refresh_token):
+            return False, 'Refresh token is empty'
+
+        user_id: int = int(user_id)
+
+        if not self.__db.user_id_exists(user_id):
+            return False, 'Invalid User ID'
+
+        db_refresh_token: str = self.__db.get_refresh_token_by_user_id(user_id)
+        if not refresh_token == db_refresh_token:
+            return False, 'Refresh token is invalid'
+        return True, ''
 
     def correct_api_credentials(self, user_id: str, access_token: str) -> Tuple[bool, str]:
         """
