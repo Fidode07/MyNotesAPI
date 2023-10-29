@@ -204,13 +204,35 @@ class DatabaseManager:
 
         return UserInfo(token_info, user_id)
 
-    def get_note_by_id(self, user_id: int, note_id: int) -> Note:
+    def delete_note_by_id(self, user_id: int, note_id: int) -> None:
+        """
+        Delete a note by ID
+        :param user_id: User ID
+        :param note_id: Note ID
+        """
+        self.__cursor.execute("""DELETE FROM notes WHERE id = ? AND note_owner = ?""", (note_id, user_id))
+        self.__db.commit()
+
+    def note_id_exists(self, user_id: int, note_id: int) -> bool:
+        """
+        Check if a note ID exists
+        :param user_id: User ID
+        :param note_id: Note ID
+        :return: True if exists, False otherwise
+        """
+        self.__cursor.execute("""SELECT id FROM notes WHERE id = ? AND note_owner = ?""", (note_id, user_id))
+        return self.__cursor.fetchone() is not None
+
+    def get_note_by_id(self, user_id: int, note_id: int) -> Note | None:
         """
         Get note information
         :param user_id: User ID
         :param note_id: Note ID
         :return: Note object
         """
+        if not self.note_id_exists(user_id, note_id):
+            return None
+
         self.__cursor.execute(
             """SELECT subject, note, note_owner, release_date, weight, created_at FROM notes WHERE id = ? AND 
             note_owner = ?""",

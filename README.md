@@ -144,6 +144,7 @@ JSON object with the following parameters:
 - <strong>status</strong>: The status of the request. 200 if successful, 500 if not (500 is also returned if the client
   made a mistake)
 - <strong>error</strong>: Boolean value indicating if an error occured
+- <strong>note_id</strong>: The ID of the note
 
 ### /get_note
 

@@ -14,6 +14,44 @@ class MyNotes(FlaskView):
         self.__login_utils: LoginUtils = LoginUtils(self.__db, self.__hasher)
         self.__auth_helper: AuthHelper = AuthHelper(self.__db)
 
+    @route('/delete_note', methods=['POST'])
+    def delete_note(self) -> tuple[Response, int]:
+        """
+        Delete a note from the database
+        :return: Response and status code
+        """
+        try:
+            user_id: str = str(flask.request.json['user_id'])
+            access_token: str = str(flask.request.json['access_token'])
+
+            auth_correct: Tuple[bool, str] = self.__auth_helper.correct_api_credentials(user_id, access_token)
+
+            if not auth_correct[0]:
+                raise InvalidArgumentException(auth_correct[1])
+
+            user_id: int = int(user_id)
+
+            if self.__auth_helper.access_token_expired(user_id):
+                raise InvalidArgumentException('Access token expired')
+
+            if StringUtils.is_empty(str(flask.request.json['note_id'])):
+                raise InvalidArgumentException('Note id is empty')
+
+            note_id: int = int(flask.request.json['note_id'])
+
+            # check if note with id exists
+            note: Note = self.__db.get_note_by_id(user_id, note_id)
+            if not note:
+                raise InvalidArgumentException('Note does not exist or does not belong to user')
+
+            self.__db.delete_note_by_id(user_id, note_id)
+            return jsonify({
+                'status': 200,
+                'error': False
+            }), 200
+        except Exception as e:
+            return jsonify({'status': 500, 'error': True, "error_msg": str(e)}), 500
+
     @route('/get_note', methods=['POST'])
     def get_note(self) -> tuple[Response, int]:
         """
@@ -34,8 +72,14 @@ class MyNotes(FlaskView):
             if self.__auth_helper.access_token_expired(user_id):
                 raise InvalidArgumentException('Access token expired')
 
+            if StringUtils.is_empty(str(flask.request.json['note_id'])):
+                raise InvalidArgumentException('Note id is empty')
+
             note_id: int = int(flask.request.json['note_id'])
             note: Note = self.__db.get_note_by_id(user_id, note_id)
+            print(note)
+            if not Note or note is None:  # idk why but it does not work with not Note
+                raise InvalidArgumentException('Note does not exist or does not belong to user')
 
             return jsonify({
                 'status': 200,
@@ -70,10 +114,12 @@ class MyNotes(FlaskView):
             weight: float = float(flask.request.json['weight'])
             release_date: str = str(flask.request.json['release_date'])
 
-            self.__db.add_note(subject=subject, note=note, user_id=user_id, release_date=release_date, weight=weight)
+            note_id: int = self.__db.add_note(subject=subject, note=note, user_id=user_id, release_date=release_date,
+                                              weight=weight)
             return jsonify({
                 'status': 200,
-                'error': False
+                'error': False,
+                'note_id': note_id
             }), 200
         except Exception as e:
             return jsonify({'status': 500, 'error': True, "error_msg": str(e)}), 500
