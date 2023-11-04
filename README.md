@@ -6,6 +6,11 @@ you to view all of your grades directly and thus your grade point average.
 
 Why MyNotesAPI is special? It has a strong auth system.
 
+# Do I have to host the whole thing myself
+
+I recommend hosting MyNotes yourself. Nevertheless, there is also a version hosted by me. Since it is hosted on Replit in a free repo, I would not rely on it.
+URL: https://mynotesapi.fidode07.repl.co/
+
 # Endpoints
 
 MyNotes is only a small project, so it doesn't need that many endpoints.
